@@ -24,7 +24,7 @@ spec:
       default: Containerfile
     - name: git-url
       type: string
-      default: https://github.com/your-org/speech-recorder.git
+      default: https://github.com/earvonen/speech-recorder.git
     - name: git-revision
       type: string
       default: main
