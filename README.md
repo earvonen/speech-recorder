@@ -6,7 +6,29 @@ Browser app with a **record/stop** control, optional **send** or **discard** aft
 
 - **Record** toggles microphone capture (MediaRecorder).
 - After stop: **Send** uploads audio to `POST /api/upload` or **Discard** drops the blob.
-- Backend saves files under `uploads/` (multipart field name: `audio`).
+- Backend saves files under `uploads/` (multipart field name: `audio`), then calls **vLLM** (OpenAI-compatible `POST /v1/chat/completions` with `input_audio`) to **transcribe** into a **`.txt`** file next to the recording.
+
+## vLLM transcription
+
+After each successful upload, the server reads the saved audio, base64-encodes it, and calls:
+
+`{VLLM_BASE_URL}/v1/chat/completions`
+
+using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/multimodal_inputs.html) (`input_audio` + text instruction). The transcript is written to **`uploads/<same-basename>.txt`**.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VLLM_BASE_URL` | `http://redhataigemma-3n-e4b-it-fp8-dynamic-predictor:8080` | vLLM server (no trailing slash) |
+| `VLLM_MODEL` | *(unset)* | Model id; if unset, uses the first model from `GET /v1/models` |
+| `VLLM_API_KEY` | *(unset)* | Optional `Authorization: Bearer …` |
+| `VLLM_MAX_TOKENS` | `4096` | `max_tokens` for completion |
+| `VLLM_REQUEST_TIMEOUT_MS` | `120000` | HTTP timeout for vLLM |
+| `VLLM_TRANSCRIBE_PROMPT` | *(built-in)* | User instruction text in the chat message |
+| `VLLM_DISABLE_TRANSCRIPTION` | *(unset)* | Set to `1` or `true` to skip vLLM (audio only) |
+
+On OpenShift, **`openshift/deployment.yaml`** sets `VLLM_BASE_URL` to the in-namespace predictor service. Set **`VLLM_MODEL`** if `/v1/models` returns more than one entry or the first id is wrong.
+
+**Formats:** The browser typically sends **WebM/Opus**. vLLM decodes using its audio stack (often **librosa**); if a format is rejected, convert upstream or change the recording MIME (see vLLM / model docs). Large files increase memory use (base64 in JSON).
 
 ## Run locally
 
@@ -23,7 +45,8 @@ Open [http://localhost:3000](http://localhost:3000). The server listens on `0.0.
 
 | Path | Purpose |
 |------|--------|
-| `server.js` | Express server, static `public/`, upload handler |
+| `server.js` | Express server, static `public/`, upload + transcription orchestration |
+| `vllm-transcribe.js` | vLLM OpenAI client: `input_audio`, model resolution |
 | `public/` | `index.html`, `app.js`, `style.css` |
 | `uploads/` | Saved recordings (created at runtime; ignored by git except `.gitkeep`) |
 | `Containerfile` | Multi-stage image: `npm ci`, non-root–friendly permissions for OpenShift |
@@ -81,6 +104,6 @@ By default, recordings live on the **pod’s ephemeral filesystem** and are lost
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Static UI |
-| `POST` | `/api/upload` | Multipart form field **`audio`** (file); responds with JSON including saved **`filename`** |
+| `POST` | `/api/upload` | Multipart field **`audio`**. JSON: **`filename`**, **`path`**, optional **`transcriptFilename`** / **`transcriptionText`**, or **`transcriptionError`** if vLLM failed (audio still saved). |
 
 Max upload size: **100 MiB** (see `server.js`).

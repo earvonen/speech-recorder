@@ -9,11 +9,13 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY server.js ./
+COPY vllm-transcribe.js ./
 COPY public ./public
 
 # Writable uploads dir; arbitrary cluster-assigned UID runs with GID 0 — group perms must match user.
 RUN mkdir -p /app/uploads && chgrp -R 0 /app && chmod -R g=u /app
 
-USER 1001
+# OCI user root so OpenShift restricted-v2 can assign a namespace UID.
+USER 0
 EXPOSE 3000
 CMD ["node", "server.js"]

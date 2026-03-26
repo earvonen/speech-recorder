@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { transcribeFile } = require("./vllm-transcribe");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,15 +30,44 @@ const upload = multer({
 
 app.use(express.static(path.join(__dirname, "public")));
 
-app.post("/api/upload", upload.single("audio"), (req, res) => {
+app.post("/api/upload", upload.single("audio"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No audio file received" });
   }
-  res.json({
+
+  const { filename, path: audioPath } = req.file;
+  const baseName = path.basename(filename, path.extname(filename));
+  const transcriptFilename = `${baseName}.txt`;
+  const transcriptPath = path.join(UPLOAD_DIR, transcriptFilename);
+
+  const payload = {
     ok: true,
-    filename: req.file.filename,
-    path: req.file.path,
-  });
+    filename,
+    path: audioPath,
+    transcriptFilename: null,
+    transcriptPath: null,
+    transcriptionText: null,
+    transcriptionError: null,
+  };
+
+  const skip = process.env.VLLM_DISABLE_TRANSCRIPTION === "1" || process.env.VLLM_DISABLE_TRANSCRIPTION === "true";
+
+  if (skip) {
+    return res.json(payload);
+  }
+
+  try {
+    const text = await transcribeFile(audioPath, filename);
+    await fs.promises.writeFile(transcriptPath, text, "utf8");
+    payload.transcriptFilename = transcriptFilename;
+    payload.transcriptPath = transcriptPath;
+    payload.transcriptionText = text;
+  } catch (err) {
+    payload.transcriptionError = err.message || String(err);
+    console.error("[transcription]", err);
+  }
+
+  res.json(payload);
 });
 
 app.listen(PORT, "0.0.0.0", () => {

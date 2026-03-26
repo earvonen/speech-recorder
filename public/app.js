@@ -167,7 +167,13 @@
         throw new Error(data.error || res.statusText || "Upload failed");
       }
 
-      setStatus(`Saved as ${data.filename || "file"}.`, "success");
+      let msg = `Saved as ${data.filename || "file"}.`;
+      if (data.transcriptFilename) {
+        msg += ` Transcript: ${data.transcriptFilename}.`;
+      } else if (data.transcriptionError) {
+        msg += ` Transcription failed: ${data.transcriptionError}`;
+      }
+      setStatus(msg, data.transcriptionError && !data.transcriptFilename ? "error" : "success");
       clearPending();
     } catch (e) {
       setStatus(e.message || "Upload failed.", "error");
