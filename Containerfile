@@ -4,6 +4,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 FROM node:20-alpine
+# ffmpeg: browser WebM/Opus → PCM WAV for vLLM (librosa/soundfile cannot read WebM)
+RUN apk add --no-cache ffmpeg
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules

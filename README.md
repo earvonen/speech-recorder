@@ -17,6 +17,8 @@ After each successful upload, the server reads the saved audio, base64-encodes i
 
 using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/multimodal_inputs.html) (`input_audio` + text instruction). The transcript is written to **`uploads/<same-basename>.txt`**.
 
+**Audio pipeline:** Recordings are usually **WebM/Opus**. vLLM loads `input_audio` with **librosa/soundfile**, which does **not** understand WebM. Before calling vLLM, this app runs **`ffmpeg`** to produce **16 kHz mono PCM WAV** (aligned with Gemma 3n audio guidance). The container image installs **`ffmpeg`** via Alpine (`Containerfile`). For local development, install **`ffmpeg`** on your PATH.
+
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `VLLM_BASE_URL` | `http://redhataigemma-3n-e4b-it-fp8-dynamic-predictor:8080` | vLLM server (no trailing slash) |
@@ -26,14 +28,16 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 | `VLLM_REQUEST_TIMEOUT_MS` | `120000` | HTTP timeout for vLLM |
 | `VLLM_TRANSCRIBE_PROMPT` | *(built-in)* | User instruction text in the chat message |
 | `VLLM_DISABLE_TRANSCRIPTION` | *(unset)* | Set to `1` or `true` to skip vLLM (audio only) |
+| `VLLM_SKIP_FFMPEG` | *(unset)* | Set to `1` or `true` to send the raw file as `input_audio` (only useful for WAV already compatible with soundfile) |
+| `FFMPEG_TIMEOUT_MS` | `300000` | Max time for the ffmpeg conversion step (ms) |
 
 On OpenShift, **`openshift/deployment.yaml`** sets `VLLM_BASE_URL` to the in-namespace predictor service. Set **`VLLM_MODEL`** if `/v1/models` returns more than one entry or the first id is wrong.
 
-**Formats:** The browser typically sends **WebM/Opus**. vLLM decodes using its audio stack (often **librosa**); if a format is rejected, convert upstream or change the recording MIME (see vLLM / model docs). Large files increase memory use (base64 in JSON).
+Large clips increase memory (WAV in memory + base64 JSON to vLLM).
 
 ## Run locally
 
-Requires **Node.js 18+**. Microphone access needs **HTTPS** or **localhost**.
+Requires **Node.js 18+** and **`ffmpeg`** on `PATH` for transcription. Microphone access needs **HTTPS** or **localhost**.
 
 ```bash
 npm install
@@ -59,6 +63,7 @@ Open [http://localhost:3000](http://localhost:3000). The server listens on `0.0.
 Build context is the repo root. The image:
 
 - Installs production dependencies with `npm ci`.
+- Installs **`ffmpeg`** (WebM → WAV for vLLM).
 - Sets `chgrp 0` and `chmod -R g=u` on `/app` so a **cluster-assigned UID** (with group `0`) can read the app and write `/app/uploads`.
 
 ### OpenShift and `restricted-v2`

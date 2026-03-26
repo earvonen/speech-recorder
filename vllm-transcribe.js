@@ -1,5 +1,59 @@
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const crypto = require("crypto");
+const { spawnSync } = require("child_process");
+
+/**
+ * vLLM decodes input_audio with librosa → soundfile, which does not support WebM/Opus from the browser.
+ * Decode with ffmpeg to 16 kHz mono PCM WAV (matches Gemma 3n audio guidance).
+ */
+async function convertToPcmWav16kMono(inputPath) {
+  const tmp = path.join(os.tmpdir(), `sr-wav-${crypto.randomBytes(12).toString("hex")}.wav`);
+  const timeoutMs = parseInt(process.env.FFMPEG_TIMEOUT_MS || "300000", 10);
+
+  try {
+    const result = spawnSync(
+      "ffmpeg",
+      [
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        inputPath,
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-c:a",
+        "pcm_s16le",
+        "-f",
+        "wav",
+        tmp,
+      ],
+      timeoutMs > 0 ? { timeout: timeoutMs } : {}
+    );
+
+    if (result.error) {
+      if (result.error.code === "ENOENT") {
+        throw new Error(
+          "ffmpeg is not installed or not on PATH. It is required to convert WebM/Opus to WAV for vLLM."
+        );
+      }
+      throw result.error;
+    }
+
+    if (result.status !== 0) {
+      const err = (result.stderr && result.stderr.toString()) || `exit ${result.status}`;
+      throw new Error(`ffmpeg failed: ${err.slice(0, 600)}`);
+    }
+
+    return await fs.promises.readFile(tmp);
+  } finally {
+    await fs.promises.unlink(tmp).catch(() => {});
+  }
+}
 
 function vllmBaseUrl() {
   const u = process.env.VLLM_BASE_URL || "http://redhataigemma-3n-e4b-it-fp8-dynamic-predictor:8080";
@@ -33,22 +87,6 @@ async function resolveModelId() {
   return id;
 }
 
-/** Map file extension to vLLM/OpenAI input_audio format hint (librosa-backed on server). */
-function audioFormatFromFilename(filename) {
-  const ext = path.extname(filename).replace(/^\./, "").toLowerCase();
-  const map = {
-    webm: "webm",
-    wav: "wav",
-    mp3: "mp3",
-    m4a: "mp4",
-    mp4: "mp4",
-    ogg: "ogg",
-    opus: "opus",
-    flac: "flac",
-  };
-  return map[ext] || ext || "webm";
-}
-
 function extractAssistantText(message) {
   const c = message?.content;
   if (typeof c === "string") return c.trim();
@@ -69,9 +107,20 @@ function extractAssistantText(message) {
  * @returns {Promise<string>} transcript text
  */
 async function transcribeFile(filePath, originalFilename) {
-  const buf = await fs.promises.readFile(filePath);
+  const skipFfmpeg =
+    process.env.VLLM_SKIP_FFMPEG === "1" || process.env.VLLM_SKIP_FFMPEG === "true";
+  let buf;
+  let format;
+  if (skipFfmpeg) {
+    buf = await fs.promises.readFile(filePath);
+    const ext = path.extname(originalFilename).replace(/^\./, "").toLowerCase();
+    format = ext === "wav" ? "wav" : ext || "wav";
+  } else {
+    buf = await convertToPcmWav16kMono(filePath);
+    format = "wav";
+  }
+
   const b64 = buf.toString("base64");
-  const format = audioFormatFromFilename(originalFilename);
   const model = await resolveModelId();
 
   const maxTokens = parseInt(process.env.VLLM_MAX_TOKENS || "4096", 10);
@@ -145,5 +194,5 @@ module.exports = {
   transcribeFile,
   vllmBaseUrl,
   resolveModelId,
-  audioFormatFromFilename,
+  convertToPcmWav16kMono,
 };
