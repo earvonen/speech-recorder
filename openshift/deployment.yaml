@@ -39,13 +39,13 @@ spec:
           env:
             - name: NODE_ENV
               value: production
+          # Omit runAsUser: OpenShift assigns a UID from the namespace range (e.g. restricted-v2).
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
             runAsNonRoot: true
-            runAsUser: 1001
           readinessProbe:
             httpGet:
               path: /
