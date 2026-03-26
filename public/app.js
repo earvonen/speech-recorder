@@ -7,6 +7,9 @@
   const actionPanel = document.getElementById("actionPanel");
   const sendBtn = document.getElementById("sendBtn");
   const discardBtn = document.getElementById("discardBtn");
+  const transcribeFilename = document.getElementById("transcribeFilename");
+  const transcribeBtn = document.getElementById("transcribeBtn");
+  const transcribeStatus = document.getElementById("transcribeStatus");
 
   let mediaStream = null;
   let mediaRecorder = null;
@@ -21,6 +24,12 @@
     statusEl.textContent = message || "";
     statusEl.classList.remove("error", "success");
     if (kind) statusEl.classList.add(kind);
+  }
+
+  function setTranscribeStatus(message, kind) {
+    transcribeStatus.textContent = message || "";
+    transcribeStatus.classList.remove("error", "success");
+    if (kind) transcribeStatus.classList.add(kind);
   }
 
   function pickMimeType() {
@@ -179,6 +188,36 @@
       setStatus(e.message || "Upload failed.", "error");
       sendBtn.disabled = false;
       discardBtn.disabled = false;
+    }
+  });
+
+  transcribeBtn.addEventListener("click", async () => {
+    const name = transcribeFilename.value.trim();
+    if (!name) {
+      setTranscribeStatus("Enter a filename.", "error");
+      return;
+    }
+
+    transcribeBtn.disabled = true;
+    setTranscribeStatus("Transcribing…");
+
+    try {
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: name }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || data.transcriptionError || res.statusText || "Transcribe failed");
+      }
+
+      setTranscribeStatus(`Wrote ${data.transcriptFilename || "transcript"}.`, "success");
+    } catch (e) {
+      setTranscribeStatus(e.message || "Transcribe failed.", "error");
+    } finally {
+      transcribeBtn.disabled = false;
     }
   });
 })();

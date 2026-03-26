@@ -27,6 +27,24 @@
           <button type="button" id="discardBtn" class="btn btn-secondary">Discard</button>
         </div>
       </div>
+
+      <section class="transcribe-panel" aria-labelledby="transcribeHeading">
+        <h2 id="transcribeHeading" class="transcribe-panel__title">Transcribe a file already in uploads</h2>
+        <p class="transcribe-panel__hint">Enter the audio filename (e.g. <code>recording-123.webm</code>). A <code>.txt</code> transcript is written next to it.</p>
+        <div class="transcribe-panel__row">
+          <label class="visually-hidden" for="transcribeFilename">Uploads filename</label>
+          <input
+            type="text"
+            id="transcribeFilename"
+            class="transcribe-panel__input"
+            placeholder="filename.webm"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" id="transcribeBtn" class="btn btn-transcribe">Transcribe</button>
+        </div>
+        <p id="transcribeStatus" class="transcribe-panel__status" role="status"></p>
+      </section>
     </main>
     <script src="/app.js"></script>
   </body>

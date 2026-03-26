@@ -168,3 +168,99 @@ h1 {
 .btn-secondary:hover:not(:disabled) {
   background: #30363d;
 }
+
+.transcribe-panel {
+  margin-top: 2.25rem;
+  padding-top: 2rem;
+  border-top: 1px solid #30363d;
+  text-align: left;
+}
+
+.transcribe-panel__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  color: #c9d1d9;
+  text-align: center;
+}
+
+.transcribe-panel__hint {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: #8b949e;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.transcribe-panel__hint code {
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: #21262d;
+  color: #79c0ff;
+}
+
+.transcribe-panel__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.transcribe-panel__input {
+  flex: 1 1 10rem;
+  min-width: 0;
+  font: inherit;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #30363d;
+  background: #0d1117;
+  color: #e6edf3;
+}
+
+.transcribe-panel__input:focus {
+  outline: none;
+  border-color: #1f6feb;
+  box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.35);
+}
+
+.btn-transcribe {
+  flex: 0 0 auto;
+  background: #8957e5;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.btn-transcribe:hover:not(:disabled) {
+  background: #a371f7;
+}
+
+.transcribe-panel__status {
+  min-height: 1.25rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: #8b949e;
+  text-align: center;
+}
+
+.transcribe-panel__status.success {
+  color: #3fb950;
+}
+
+.transcribe-panel__status.error {
+  color: #f85149;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

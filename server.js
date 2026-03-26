@@ -8,6 +8,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 
+/** @param {unknown} raw */
+function uploadsBasename(raw) {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  if (!t || t.length > 255) return null;
+  if (t.includes("..") || t.includes("/") || t.includes("\\")) return null;
+  const base = path.basename(t);
+  if (base !== t) return null;
+  if (!/^[a-zA-Z0-9._-]+$/.test(base)) return null;
+  return base;
+}
+
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -29,6 +41,48 @@ const upload = multer({
 });
 
 app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json({ limit: "32kb" }));
+
+app.post("/api/transcribe", async (req, res) => {
+  const name = uploadsBasename(req.body?.filename);
+  if (!name) {
+    return res.status(400).json({ error: "Invalid or missing filename" });
+  }
+
+  const skip = process.env.VLLM_DISABLE_TRANSCRIPTION === "1" || process.env.VLLM_DISABLE_TRANSCRIPTION === "true";
+  if (skip) {
+    return res.status(503).json({ error: "Transcription disabled (VLLM_DISABLE_TRANSCRIPTION)" });
+  }
+
+  const audioPath = path.join(UPLOAD_DIR, name);
+  try {
+    await fs.promises.access(audioPath, fs.constants.R_OK);
+  } catch {
+    return res.status(404).json({ error: "File not found in uploads" });
+  }
+
+  const baseName = path.basename(name, path.extname(name));
+  const transcriptFilename = `${baseName}.txt`;
+  const transcriptPath = path.join(UPLOAD_DIR, transcriptFilename);
+
+  try {
+    const text = await transcribeFile(audioPath, name);
+    await fs.promises.writeFile(transcriptPath, text, "utf8");
+    res.json({
+      ok: true,
+      sourceFilename: name,
+      transcriptFilename,
+      transcriptionText: text,
+    });
+  } catch (err) {
+    console.error("[transcribe existing]", err);
+    res.status(502).json({
+      ok: false,
+      sourceFilename: name,
+      transcriptionError: err.message || String(err),
+    });
+  }
+});
 
 app.post("/api/upload", upload.single("audio"), async (req, res) => {
   if (!req.file) {
