@@ -14,6 +14,7 @@ COPY public ./public
 # Writable uploads dir; arbitrary cluster-assigned UID runs with GID 0 — group perms must match user.
 RUN mkdir -p /app/uploads && chgrp -R 0 /app && chmod -R g=u /app
 
-# No USER: OpenShift restricted SCC injects a namespace-scoped non-root UID; fixed USER would fight that.
+USER 1001
+
 EXPOSE 3000
 CMD ["node", "server.js"]
