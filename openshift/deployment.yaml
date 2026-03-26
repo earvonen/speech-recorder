@@ -41,6 +41,9 @@ spec:
               value: production
             - name: VLLM_BASE_URL
               value: http://redhataigemma-3n-e4b-it-fp8-dynamic-predictor:8080
+            # Set to "true" when VLLM_BASE_URL is https:// and the cert is self-signed / private CA.
+            - name: VLLM_TLS_INSECURE
+              value: "true"
             # Optional: set to the exact model id served by vLLM (otherwise first entry from GET /v1/models is used).
             # - name: VLLM_MODEL
             #   value: google/gemma-3n-E4B-it
