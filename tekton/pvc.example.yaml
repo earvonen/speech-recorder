@@ -1,0 +1,14 @@
+# Example PVC for PipelineRun workspace — clone this repository into the volume
+# (e.g. a Job or manual pod) before starting the PipelineRun, or mount and sync CI artifacts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: speech-recorder-source-pvc
+  labels:
+    app: speech-recorder
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

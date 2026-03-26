@@ -1,0 +1,8 @@
+node_modules
+.git
+openshift
+tekton
+uploads
+*.md
+.env
+.env.*

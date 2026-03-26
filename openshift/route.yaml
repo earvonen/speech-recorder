@@ -1,0 +1,17 @@
+# Exposes the Service on the cluster ingress. OpenShift assigns a hostname if spec.host is omitted.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: speech-recorder
+  labels:
+    app: speech-recorder
+spec:
+  to:
+    kind: Service
+    name: speech-recorder
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

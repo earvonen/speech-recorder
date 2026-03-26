@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Speech Recorder</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>Speech Recorder</h1>
+      <p class="hint">Press record to capture audio from your microphone. Press again to stop.</p>
+
+      <div class="controls">
+        <button type="button" id="recordBtn" class="btn btn-record" aria-pressed="false">
+          <span class="btn-record__dot" aria-hidden="true"></span>
+          <span id="recordLabel">Record</span>
+        </button>
+      </div>
+
+      <p id="status" class="status" role="status"></p>
+
+      <div id="actionPanel" class="action-panel hidden" hidden>
+        <p class="action-panel__title">Recording ready</p>
+        <div class="action-panel__buttons">
+          <button type="button" id="sendBtn" class="btn btn-primary">Send</button>
+          <button type="button" id="discardBtn" class="btn btn-secondary">Discard</button>
+        </div>
+      </div>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
