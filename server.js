@@ -1,15 +1,4 @@
-/**
- * When vLLM is reached over HTTPS with a self-signed or private-CA certificate, set
- * VLLM_TLS_INSECURE=1 (or "true"). This sets NODE_TLS_REJECT_UNAUTHORIZED=0 for the
- * whole Node process, so all outbound HTTPS from this app skips certificate verification.
- * Remove or set to 0 once the vLLM endpoint uses a trusted CA.
- */
-(function applyVllmTlsInsecure() {
-  const v = process.env.VLLM_TLS_INSECURE;
-  if (v === "1" || v === "true" || String(v).toLowerCase() === "yes") {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  }
-})();
+// vLLM HTTPS + self-signed certs: set VLLM_TLS_INSECURE=true (handled in vllm-transcribe.js via undici Agent).
 
 const express = require("express");
 const multer = require("multer");

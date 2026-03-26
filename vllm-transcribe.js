@@ -3,6 +3,26 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
+const { Agent } = require("undici");
+
+function tlsInsecureEnabled() {
+  const v = process.env.VLLM_TLS_INSECURE;
+  return v === "1" || v === "true" || String(v).toLowerCase() === "yes";
+}
+
+/** Undici fetch ignores NODE_TLS_REJECT_UNAUTHORIZED; use a dispatcher with rejectUnauthorized: false. */
+let vllmInsecureAgent = null;
+function vllmFetchInit(init = {}) {
+  if (!tlsInsecureEnabled()) return init;
+  if (!vllmInsecureAgent) {
+    vllmInsecureAgent = new Agent({
+      connect: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+  return { ...init, dispatcher: vllmInsecureAgent };
+}
 
 /**
  * vLLM decodes input_audio with librosa → soundfile, which does not support WebM/Opus from the browser.
@@ -75,7 +95,7 @@ async function resolveModelId() {
   if (explicit) return explicit;
   if (cachedModelId) return cachedModelId;
 
-  const res = await fetch(`${vllmBaseUrl()}/v1/models`, { headers: authHeaders() });
+  const res = await fetch(`${vllmBaseUrl()}/v1/models`, vllmFetchInit({ headers: authHeaders() }));
   if (!res.ok) {
     const t = await res.text();
     throw new Error(`vLLM GET /v1/models failed: ${res.status} ${t.slice(0, 200)}`);
@@ -156,15 +176,18 @@ async function transcribeFile(filePath, originalFilename) {
 
   let res;
   try {
-    res = await fetch(`${vllmBaseUrl()}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    res = await fetch(
+      `${vllmBaseUrl()}/v1/chat/completions`,
+      vllmFetchInit({
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    );
   } finally {
     clearTimeout(timer);
   }

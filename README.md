@@ -28,7 +28,7 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 | `VLLM_REQUEST_TIMEOUT_MS` | `120000` | HTTP timeout for vLLM |
 | `VLLM_TRANSCRIBE_PROMPT` | *(built-in)* | User instruction text in the chat message |
 | `VLLM_DISABLE_TRANSCRIPTION` | *(unset)* | Set to `1` or `true` to skip vLLM (audio only) |
-| `VLLM_TLS_INSECURE` | *(unset)* | Set to `1` or `true` to disable TLS certificate verification for **all** outbound HTTPS from the app (`NODE_TLS_REJECT_UNAUTHORIZED=0`). Use only for self-signed / private-CA vLLM URLs. |
+| `VLLM_TLS_INSECURE` | *(unset)* | Set to `1` or `true` so vLLM `fetch` calls use an **undici** `Agent` with `rejectUnauthorized: false` (Node’s built-in `fetch` does not honor `NODE_TLS_REJECT_UNAUTHORIZED`). Use only for self-signed / private-CA vLLM URLs. |
 | `VLLM_SKIP_FFMPEG` | *(unset)* | Set to `1` or `true` to send the raw file as `input_audio` (only useful for WAV already compatible with soundfile) |
 | `FFMPEG_TIMEOUT_MS` | `300000` | Max time for the ffmpeg conversion step (ms) |
 
