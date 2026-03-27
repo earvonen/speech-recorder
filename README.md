@@ -25,7 +25,8 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 | `VLLM_MODEL` | *(unset)* | Model id; if unset, uses the first model from `GET /v1/models` |
 | `VLLM_API_KEY` | *(unset)* | Optional `Authorization: Bearer …` |
 | `VLLM_MAX_TOKENS` | `4096` | `max_tokens` for completion |
-| `VLLM_REQUEST_TIMEOUT_MS` | `120000` | HTTP timeout for vLLM |
+| `VLLM_REQUEST_TIMEOUT_MS` | `900000` | HTTP timeout for vLLM chat request (15 min; long audio + slow GPUs) |
+| `VLLM_DEBUG_RESPONSE` | *(unset)* | Set to `1` or `true` to log the raw vLLM JSON body when assistant text is empty (debugging) |
 | `VLLM_TRANSCRIBE_PROMPT` | *(built-in)* | User instruction text in the chat message |
 | `VLLM_DISABLE_TRANSCRIPTION` | *(unset)* | Set to `1` or `true` to skip vLLM (audio only) |
 | `VLLM_TLS_INSECURE` | *(unset)* | Set to `1` or `true` so vLLM `fetch` calls use an **undici** `Agent` with `rejectUnauthorized: false` (Node’s built-in `fetch` does not honor `NODE_TLS_REJECT_UNAUTHORIZED`). Use only for self-signed / private-CA vLLM URLs. |
@@ -33,6 +34,8 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 | `FFMPEG_TIMEOUT_MS` | `300000` | Max time for the ffmpeg conversion step (ms) |
 
 On OpenShift, **`openshift/deployment.yaml`** sets `VLLM_BASE_URL` to the in-namespace predictor service. Set **`VLLM_MODEL`** if `/v1/models` returns more than one entry or the first id is wrong.
+
+**Empty `message.content` from vLLM (but GPU/log shows work):** This is a known class of issues with **Gemma + vLLM** (chat API returns 200 with empty text while tokens are counted). Use **`VLLM_DEBUG_RESPONSE=1`** once to capture the raw JSON. On the inference side, try **bfloat16 / float32** instead of float16, update vLLM, or check [Gemma empty-output reports](https://github.com/vllm-project/vllm/issues?q=is%3Aissue+gemma+empty).
 
 Large clips increase memory (WAV in memory + base64 JSON to vLLM).
 

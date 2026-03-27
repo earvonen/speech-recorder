@@ -107,15 +107,84 @@ async function resolveModelId() {
   return id;
 }
 
+/**
+ * Collect human-readable text from OpenAI-style message.content (string, array, or nested).
+ * vLLM / Gemma may use part shapes that omit type === "text" or use other field names.
+ */
+function flattenContentParts(parts) {
+  if (parts == null) return "";
+  if (typeof parts === "string") return parts;
+  if (typeof parts === "number" || typeof parts === "boolean") return String(parts);
+  if (!Array.isArray(parts)) {
+    if (typeof parts === "object") {
+      return flattenContentParts([parts]);
+    }
+    return "";
+  }
+  const chunks = [];
+  for (const p of parts) {
+    if (p == null) continue;
+    if (typeof p === "string") {
+      chunks.push(p);
+      continue;
+    }
+    if (typeof p !== "object") continue;
+    if (typeof p.text === "string") chunks.push(p.text);
+    if (typeof p.content === "string") chunks.push(p.content);
+    else if (Array.isArray(p.content)) chunks.push(flattenContentParts(p.content));
+    if (typeof p.output_text === "string") chunks.push(p.output_text);
+    if (typeof p.value === "string") chunks.push(p.value);
+  }
+  return chunks.join("");
+}
+
 function extractAssistantText(message) {
-  const c = message?.content;
+  if (!message) return "";
+
+  if (typeof message.text === "string" && message.text.trim()) {
+    return message.text.trim();
+  }
+
+  if (message.parts && Array.isArray(message.parts)) {
+    const fromParts = flattenContentParts(message.parts).trim();
+    if (fromParts) return fromParts;
+  }
+
+  const c = message.content;
   if (typeof c === "string") return c.trim();
-  if (Array.isArray(c)) {
-    return c
-      .filter((p) => p && (p.type === "text" || p.text))
-      .map((p) => p.text || "")
-      .join("")
-      .trim();
+  if (c != null && typeof c === "object") {
+    if (!Array.isArray(c) && Array.isArray(c.parts)) {
+      const fromNested = flattenContentParts(c.parts).trim();
+      if (fromNested) return fromNested;
+    }
+    const flat = flattenContentParts(Array.isArray(c) ? c : [c]).trim();
+    if (flat) return flat;
+  }
+
+  if (typeof message.refusal === "string" && message.refusal.trim()) {
+    return message.refusal.trim();
+  }
+  if (typeof message.reasoning_content === "string" && message.reasoning_content.trim()) {
+    return message.reasoning_content.trim();
+  }
+  return "";
+}
+
+/** Best-effort text from one chat completion choice (message, legacy text, delta). */
+function extractTextFromChoice(choice) {
+  if (!choice) return "";
+  let t = extractAssistantText(choice.message);
+  if (t) return t;
+  if (typeof choice.text === "string" && choice.text.trim()) {
+    return choice.text.trim();
+  }
+  const delta = choice.delta;
+  if (delta) {
+    t = extractAssistantText({ content: delta.content, refusal: delta.refusal });
+    if (t) return t;
+    if (typeof delta.content === "string" && delta.content.trim()) {
+      return delta.content.trim();
+    }
   }
   return "";
 }
@@ -144,7 +213,8 @@ async function transcribeFile(filePath, originalFilename) {
   const model = await resolveModelId();
 
   const maxTokens = parseInt(process.env.VLLM_MAX_TOKENS || "4096", 10);
-  const timeoutMs = parseInt(process.env.VLLM_REQUEST_TIMEOUT_MS || "120000", 10);
+  // Long audio + large models often exceed 2 minutes; default 15m unless overridden.
+  const timeoutMs = parseInt(process.env.VLLM_REQUEST_TIMEOUT_MS || "900000", 10);
 
   const body = {
     model,
@@ -205,11 +275,34 @@ async function transcribeFile(filePath, originalFilename) {
     throw new Error(`vLLM chat/completions ${res.status}: ${err}`);
   }
 
-  const choice = json.choices?.[0];
-  const text = extractAssistantText(choice?.message);
-  if (!text) {
-    throw new Error("vLLM returned empty assistant content");
+  const choices = Array.isArray(json.choices) ? json.choices : [];
+  let text = "";
+  for (const ch of choices) {
+    text = extractTextFromChoice(ch);
+    if (text) break;
   }
+
+  if (!text) {
+    const dbg =
+      process.env.VLLM_DEBUG_RESPONSE === "1" || process.env.VLLM_DEBUG_RESPONSE === "true";
+    const first = choices[0];
+    const hint = first
+      ? JSON.stringify({
+          finish_reason: first.finish_reason,
+          message: first.message,
+          text: first.text,
+          delta: first.delta,
+        }).slice(0, 2000)
+      : "(no choices)";
+    if (dbg) {
+      console.error("[vLLM raw chat/completions body]", raw.slice(0, 8000));
+    }
+    throw new Error(
+      `vLLM returned empty assistant content (finish_reason=${first?.finish_reason ?? "n/a"}). ` +
+        `Set VLLM_DEBUG_RESPONSE=1 for full body log. Parsed choice snippet: ${hint}`
+    );
+  }
+
   return text;
 }
 
