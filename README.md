@@ -24,7 +24,11 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 | `VLLM_BASE_URL` | `http://redhataigemma-3n-e4b-it-fp8-dynamic-predictor:8080` | vLLM server (no trailing slash) |
 | `VLLM_MODEL` | *(unset)* | Model id; if unset, uses the first model from `GET /v1/models` |
 | `VLLM_API_KEY` | *(unset)* | Optional `Authorization: Bearer …` |
-| `VLLM_MAX_TOKENS` | `4096` | `max_tokens` for completion |
+| `VLLM_MAX_TOKENS` | `8192` | `max_tokens` for completion (raise if `finish_reason=length` on long clips) |
+| `VLLM_TEMPERATURE` | `0` | Sampling temperature (0 = greedy; good for transcription) |
+| `VLLM_STOP_SEQUENCES` | *(unset)* | Comma-separated `stop` strings; default is `<end_of_turn>` for Gemma unless `VLLM_DISABLE_STOP=1` |
+| `VLLM_DISABLE_STOP` | *(unset)* | Set to `1` to omit `stop` (only if the server rejects default stops) |
+| `VLLM_EXTRA_JSON` | *(unset)* | JSON object merged into the chat-completions body (e.g. vLLM-specific flags) |
 | `VLLM_REQUEST_TIMEOUT_MS` | `900000` | HTTP timeout for vLLM chat request (15 min; long audio + slow GPUs) |
 | `VLLM_DEBUG_RESPONSE` | *(unset)* | Set to `1` or `true` to log the raw vLLM JSON body when assistant text is empty (debugging) |
 | `VLLM_TRANSCRIBE_PROMPT` | *(built-in)* | User instruction text in the chat message |
@@ -35,7 +39,7 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 
 On OpenShift, **`openshift/deployment.yaml`** sets `VLLM_BASE_URL` to the in-namespace predictor service. Set **`VLLM_MODEL`** if `/v1/models` returns more than one entry or the first id is wrong.
 
-**Empty `message.content` from vLLM (but GPU/log shows work):** This is a known class of issues with **Gemma + vLLM** (chat API returns 200 with empty text while tokens are counted). Use **`VLLM_DEBUG_RESPONSE=1`** once to capture the raw JSON. On the inference side, try **bfloat16 / float32** instead of float16, update vLLM, or check [Gemma empty-output reports](https://github.com/vllm-project/vllm/issues?q=is%3Aissue+gemma+empty).
+**Empty `message.content` with `finish_reason=length` and `completion_tokens` at `max_tokens`:** The model ran until the token cap; this app now sends **`stop: ["<end_of_turn>"]`** (Gemma) and defaults to **`max_tokens: 8192`** with **`temperature: 0`**. Raise **`VLLM_MAX_TOKENS`** further for very long speech, or adjust **`VLLM_STOP_SEQUENCES`** if your server uses different end-of-sequence strings. If content stays empty, see [Gemma empty-output reports](https://github.com/vllm-project/vllm/issues?q=is%3Aissue+gemma+empty) and dtype (**bfloat16** vs float16) on the inference side.
 
 Large clips increase memory (WAV in memory + base64 JSON to vLLM).
 

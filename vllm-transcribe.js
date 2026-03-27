@@ -212,10 +212,13 @@ async function transcribeFile(filePath, originalFilename) {
   const b64 = buf.toString("base64");
   const model = await resolveModelId();
 
-  const maxTokens = parseInt(process.env.VLLM_MAX_TOKENS || "4096", 10);
+  // Gemma + long audio can exceed 4k; empty content + finish_reason=length often hits max_tokens.
+  const maxTokens = parseInt(process.env.VLLM_MAX_TOKENS || "8192", 10);
+  const effectiveMax = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 8192;
   // Long audio + large models often exceed 2 minutes; default 15m unless overridden.
   const timeoutMs = parseInt(process.env.VLLM_REQUEST_TIMEOUT_MS || "900000", 10);
 
+  const temperature = parseFloat(process.env.VLLM_TEMPERATURE ?? "0");
   const body = {
     model,
     messages: [
@@ -238,8 +241,32 @@ async function transcribeFile(filePath, originalFilename) {
         ],
       },
     ],
-    max_tokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 4096,
+    max_tokens: effectiveMax,
+    temperature: Number.isFinite(temperature) ? temperature : 0,
   };
+
+  // Without stop strings, Gemma 3n on vLLM may burn max_tokens without filling message.content.
+  const disableStop =
+    process.env.VLLM_DISABLE_STOP === "1" || process.env.VLLM_DISABLE_STOP === "true";
+  if (!disableStop) {
+    const rawStops = process.env.VLLM_STOP_SEQUENCES?.trim();
+    body.stop = rawStops
+      ? rawStops.split(",").map((s) => s.trim()).filter(Boolean)
+      : ["<end_of_turn>"];
+  }
+
+  const extraJson = process.env.VLLM_EXTRA_JSON?.trim();
+  if (extraJson) {
+    let extra;
+    try {
+      extra = JSON.parse(extraJson);
+    } catch (e) {
+      throw new Error(`Invalid VLLM_EXTRA_JSON: ${e.message}`);
+    }
+    if (extra && typeof extra === "object" && !Array.isArray(extra)) {
+      Object.assign(body, extra);
+    }
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -297,8 +324,17 @@ async function transcribeFile(filePath, originalFilename) {
     if (dbg) {
       console.error("[vLLM raw chat/completions body]", raw.slice(0, 8000));
     }
+    const usage = json.usage;
+    const lenHint =
+      first?.finish_reason === "length"
+        ? ` Hit max_tokens (${effectiveMax}); try raising VLLM_MAX_TOKENS. For Gemma on vLLM, also ensure stop sequences run (default <end_of_turn> unless VLLM_DISABLE_STOP=1).`
+        : "";
+    const tokHint =
+      usage?.completion_tokens != null
+        ? ` completion_tokens=${usage.completion_tokens}.`
+        : "";
     throw new Error(
-      `vLLM returned empty assistant content (finish_reason=${first?.finish_reason ?? "n/a"}). ` +
+      `vLLM returned empty assistant content (finish_reason=${first?.finish_reason ?? "n/a"}).${tokHint}${lenHint} ` +
         `Set VLLM_DEBUG_RESPONSE=1 for full body log. Parsed choice snippet: ${hint}`
     );
   }
