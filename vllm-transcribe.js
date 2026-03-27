@@ -88,6 +88,27 @@ function authHeaders() {
   return {};
 }
 
+/** Default `stop` substrings for Gemma-style chat (see README: what stop sequences mean). */
+const DEFAULT_GEMMA_STOPS = ["<end_of_turn>", "<eos>", "</s>"];
+
+function redactVllmRequestBodyForLog(body) {
+  try {
+    const o = JSON.parse(JSON.stringify(body));
+    for (const msg of o.messages || []) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content) {
+        if (part?.input_audio?.data) {
+          const n = String(part.input_audio.data).length;
+          part.input_audio.data = `<redacted ${n} base64 chars>`;
+        }
+      }
+    }
+    return JSON.stringify(o).slice(0, 16000);
+  } catch {
+    return "(could not redact body)";
+  }
+}
+
 let cachedModelId = null;
 
 async function resolveModelId() {
@@ -245,14 +266,19 @@ async function transcribeFile(filePath, originalFilename) {
     temperature: Number.isFinite(temperature) ? temperature : 0,
   };
 
-  // Without stop strings, Gemma 3n on vLLM may burn max_tokens without filling message.content.
+  /**
+   * `stop`: optional list of strings. The server should end generation when the model
+   * would next output one of these as literal text—often Gemma's end-of-turn / EOS markers—
+   * instead of running until max_tokens. If you still hit max_tokens with empty content,
+   * vLLM may ignore `stop` for this multimodal path or the model never emits these strings.
+   */
   const disableStop =
     process.env.VLLM_DISABLE_STOP === "1" || process.env.VLLM_DISABLE_STOP === "true";
   if (!disableStop) {
     const rawStops = process.env.VLLM_STOP_SEQUENCES?.trim();
     body.stop = rawStops
       ? rawStops.split(",").map((s) => s.trim()).filter(Boolean)
-      : ["<end_of_turn>"];
+      : [...DEFAULT_GEMMA_STOPS];
   }
 
   const extraJson = process.env.VLLM_EXTRA_JSON?.trim();
@@ -266,6 +292,12 @@ async function transcribeFile(filePath, originalFilename) {
     if (extra && typeof extra === "object" && !Array.isArray(extra)) {
       Object.assign(body, extra);
     }
+  }
+
+  const dbgReq =
+    process.env.VLLM_DEBUG_REQUEST === "1" || process.env.VLLM_DEBUG_REQUEST === "true";
+  if (dbgReq) {
+    console.error("[vLLM request body redacted]", redactVllmRequestBodyForLog(body));
   }
 
   const controller = new AbortController();
@@ -327,7 +359,7 @@ async function transcribeFile(filePath, originalFilename) {
     const usage = json.usage;
     const lenHint =
       first?.finish_reason === "length"
-        ? ` Hit max_tokens (${effectiveMax}); try raising VLLM_MAX_TOKENS. For Gemma on vLLM, also ensure stop sequences run (default <end_of_turn> unless VLLM_DISABLE_STOP=1).`
+        ? ` Ran until max_tokens (${effectiveMax}) with empty message.content. The request includes stop strings (default: ${DEFAULT_GEMMA_STOPS.join(", ")}) so vLLM can end early when the model outputs one of them; if completion_tokens still equals max_tokens, those stops did not apply or the model never emitted them—often a vLLM/Gemma 3n multimodal issue, not something speech-recorder can fix by raising max_tokens alone. Set VLLM_DEBUG_REQUEST=1 to log the outgoing body; fix inference (vLLM version, template, dtype).`
         : "";
     const tokHint =
       usage?.completion_tokens != null

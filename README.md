@@ -26,10 +26,11 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 | `VLLM_API_KEY` | *(unset)* | Optional `Authorization: Bearer …` |
 | `VLLM_MAX_TOKENS` | `8192` | `max_tokens` for completion (raise if `finish_reason=length` on long clips) |
 | `VLLM_TEMPERATURE` | `0` | Sampling temperature (0 = greedy; good for transcription) |
-| `VLLM_STOP_SEQUENCES` | *(unset)* | Comma-separated `stop` strings; default is `<end_of_turn>` for Gemma unless `VLLM_DISABLE_STOP=1` |
+| `VLLM_STOP_SEQUENCES` | *(unset)* | Comma-separated `stop` strings; default is `<end_of_turn>,<eos>,</s>` unless `VLLM_DISABLE_STOP=1` |
 | `VLLM_DISABLE_STOP` | *(unset)* | Set to `1` to omit `stop` (only if the server rejects default stops) |
 | `VLLM_EXTRA_JSON` | *(unset)* | JSON object merged into the chat-completions body (e.g. vLLM-specific flags) |
 | `VLLM_REQUEST_TIMEOUT_MS` | `900000` | HTTP timeout for vLLM chat request (15 min; long audio + slow GPUs) |
+| `VLLM_DEBUG_REQUEST` | *(unset)* | Set to `1` to log the outgoing chat-completions JSON (audio base64 redacted) |
 | `VLLM_DEBUG_RESPONSE` | *(unset)* | Set to `1` or `true` to log the raw vLLM JSON body when assistant text is empty (debugging) |
 | `VLLM_TRANSCRIBE_PROMPT` | *(built-in)* | User instruction text in the chat message |
 | `VLLM_DISABLE_TRANSCRIPTION` | *(unset)* | Set to `1` or `true` to skip vLLM (audio only) |
@@ -39,7 +40,15 @@ using the [vLLM multimodal chat format](https://docs.vllm.ai/en/latest/features/
 
 On OpenShift, **`openshift/deployment.yaml`** sets `VLLM_BASE_URL` to the in-namespace predictor service. Set **`VLLM_MODEL`** if `/v1/models` returns more than one entry or the first id is wrong.
 
-**Empty `message.content` with `finish_reason=length` and `completion_tokens` at `max_tokens`:** The model ran until the token cap; this app now sends **`stop: ["<end_of_turn>"]`** (Gemma) and defaults to **`max_tokens: 8192`** with **`temperature: 0`**. Raise **`VLLM_MAX_TOKENS`** further for very long speech, or adjust **`VLLM_STOP_SEQUENCES`** if your server uses different end-of-sequence strings. If content stays empty, see [Gemma empty-output reports](https://github.com/vllm-project/vllm/issues?q=is%3Aissue+gemma+empty) and dtype (**bfloat16** vs float16) on the inference side.
+### What are `stop` sequences?
+
+The OpenAI-style **`stop`** field is a list of **short text snippets**. The inference server is supposed to **stop generating** as soon as the model’s **next output would include** one of those snippets (for example Gemma’s **`<end_of_turn>`**), instead of continuing until **`max_tokens`**.
+
+**“Ensure stop sequences run”** only means: **(1)** the client sends **`stop`**, **(2)** vLLM honors it for that route, and **(3)** the model actually **emits** one of those strings before the cap. It is **not** something you “run” manually.
+
+If you still see **`finish_reason: "length"`** with **`completion_tokens` === `max_tokens`** and **`content: ""`**, then generation **never stopped early** and **`message.content` stayed empty**—often a **vLLM + Gemma 3n multimodal** limitation or bug (wrong chat template, dtype, or adapter not filling `content`). Raising **`VLLM_MAX_TOKENS`** alone usually **does not** fix empty `content`. Use **`VLLM_DEBUG_REQUEST=1`** to confirm **`stop`** and **`max_tokens`** on the wire; fix **inference** (vLLM version, Red Hat model card, **bfloat16** vs float16). See also [Gemma empty-output discussion](https://github.com/vllm-project/vllm/issues?q=is%3Aissue+gemma+empty).
+
+**Empty `message.content` with `finish_reason=length`:** This app sends default **`stop`** strings (`<end_of_turn>`, `<eos>`, `</s>`), **`max_tokens: 8192`**, and **`temperature: 0`**. If the problem persists, treat it as **server-side** unless your platform documents different **`stop`** strings or **`VLLM_EXTRA_JSON`** flags.
 
 Large clips increase memory (WAV in memory + base64 JSON to vLLM).
 
