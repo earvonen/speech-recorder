@@ -45,6 +45,20 @@
         </div>
         <p id="transcribeStatus" class="transcribe-panel__status" role="status"></p>
       </section>
+
+      <section class="want-panel" aria-labelledby="wantHeading">
+        <h2 id="wantHeading" class="want-panel__title">What do you want?</h2>
+        <label class="visually-hidden" for="wantText">Your request</label>
+        <textarea
+          id="wantText"
+          class="want-panel__textarea"
+          rows="5"
+          placeholder="Type what you want…"
+          spellcheck="true"
+        ></textarea>
+        <button type="button" id="wantSubmitBtn" class="btn btn-want-submit">Submit</button>
+        <p id="wantStatus" class="want-panel__status" role="status"></p>
+      </section>
     </main>
     <script src="/app.js"></script>
   </body>

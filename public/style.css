@@ -253,6 +253,73 @@ h1 {
   color: #f85149;
 }
 
+.want-panel {
+  margin-top: 2.25rem;
+  padding-top: 2rem;
+  border-top: 1px solid #30363d;
+  text-align: left;
+}
+
+.want-panel__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: #c9d1d9;
+  text-align: center;
+}
+
+.want-panel__textarea {
+  display: block;
+  width: 100%;
+  min-height: 7rem;
+  margin: 0 0 0.75rem;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+  line-height: 1.45;
+  border-radius: 8px;
+  border: 1px solid #30363d;
+  background: #0d1117;
+  color: #e6edf3;
+  resize: vertical;
+}
+
+.want-panel__textarea:focus {
+  outline: none;
+  border-color: #1f6feb;
+  box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.35);
+}
+
+.btn-want-submit {
+  display: block;
+  width: 100%;
+  max-width: 12rem;
+  margin: 0 auto;
+  background: #238636;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.btn-want-submit:hover:not(:disabled) {
+  background: #2ea043;
+}
+
+.want-panel__status {
+  min-height: 1.25rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: #8b949e;
+  text-align: center;
+}
+
+.want-panel__status.success {
+  color: #3fb950;
+}
+
+.want-panel__status.error {
+  color: #f85149;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

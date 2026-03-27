@@ -7,6 +7,7 @@ Browser app with a **record/stop** control, optional **send** or **discard** aft
 - **Record** toggles microphone capture (MediaRecorder).
 - After stop: **Send** uploads audio to `POST /api/upload` or **Discard** drops the blob.
 - Separate **Transcribe** control: type an existing **`uploads/`** filename and run speech-to-text without recording.
+- **What do you want?** textarea + **Submit**: saves typed text to **`uploads/manual-<timestamp>.txt`** with the same JSON shape as a successful speech transcript (no vLLM call).
 - Backend saves files under `uploads/` (multipart field name: `audio`), then calls **vLLM** (OpenAI-compatible `POST /v1/chat/completions` with `input_audio`) to **transcribe** into a **`.txt`** file next to the recording.
 
 ## vLLM transcription
@@ -129,5 +130,6 @@ By default, recordings live on the **pod’s ephemeral filesystem** and are lost
 | `GET` | `/` | Static UI |
 | `POST` | `/api/upload` | Multipart field **`audio`**. JSON: **`filename`**, **`path`**, optional **`transcriptFilename`** / **`transcriptionText`**, or **`transcriptionError`** if vLLM failed (audio still saved). |
 | `POST` | `/api/transcribe` | JSON body `{ "filename": "name-in-uploads.webm" }`. Reads that file from **`uploads/`**, runs vLLM, writes **`<basename>.txt`**. Responds with **`transcriptFilename`** or **`transcriptionError`** (502). |
+| `POST` | `/api/submit-text` | JSON body `{ "text": string }`. Writes **`uploads/manual-<timestamp>.txt`**. Responds like a transcript: **`transcriptFilename`**, **`transcriptionText`**, **`transcriptPath`**. Max text length **256 KiB** (see `server.js`). |
 
 Max upload size: **100 MiB** (see `server.js`). **`/api/transcribe`** only accepts a safe basename (no paths); missing file → 404.

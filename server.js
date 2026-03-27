@@ -43,7 +43,36 @@ const upload = multer({
 });
 
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "512kb" }));
+
+const MAX_MANUAL_TEXT_CHARS = 256 * 1024;
+
+/** Same outcome as a successful STT transcript: UTF-8 .txt in uploads/, same JSON shape for clients. */
+app.post("/api/submit-text", async (req, res) => {
+  const text = req.body?.text;
+  if (typeof text !== "string") {
+    return res.status(400).json({ error: 'Expected JSON body { "text": string }' });
+  }
+  if (text.length > MAX_MANUAL_TEXT_CHARS) {
+    return res.status(400).json({ error: `Text exceeds ${MAX_MANUAL_TEXT_CHARS} characters` });
+  }
+
+  const transcriptFilename = `manual-${Date.now()}.txt`;
+  const transcriptPath = path.join(UPLOAD_DIR, transcriptFilename);
+
+  try {
+    await fs.promises.writeFile(transcriptPath, text, "utf8");
+    res.json({
+      ok: true,
+      transcriptFilename,
+      transcriptPath,
+      transcriptionText: text,
+    });
+  } catch (err) {
+    console.error("[submit-text]", err);
+    res.status(500).json({ error: err.message || "Failed to save file" });
+  }
+});
 
 app.post("/api/transcribe", async (req, res) => {
   const name = uploadsBasename(req.body?.filename);
